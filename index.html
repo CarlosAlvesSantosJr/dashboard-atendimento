@@ -335,6 +335,9 @@ tbody tr:hover { background: #fafbfd; }
 .check-terceiros input { accent-color: var(--orange); }
 .check-terceiros:has(input:checked) { background: #fff4e8; border-color: #f5c99a; color: #b35c00; }
 .desabilitado { opacity: .45; pointer-events: none; }
+.check-qta input { accent-color: var(--navy2); }
+.check-qta:has(input:checked) { background: #eaf0f8; border-color: #b9c8de; color: #1d3557; }
+.tag-qta { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px; padding: 3px 8px; border-radius: 6px; background: #eaf0f8; color: #1d3557; border: 1px solid #b9c8de; }
 .tag-terceiros { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px; padding: 3px 8px; border-radius: 6px; background: #fff4e8; color: #b35c00; border: 1px solid #f5c99a; }
 .tag-obito { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px; padding: 3px 8px; border-radius: 6px; background: #2b2b2b; color: #fff; }
 .err { color: var(--red); font-size: 13px; min-height: 18px; grid-column: span 2; }
@@ -459,8 +462,9 @@ tbody tr:hover { background: #fafbfd; }
     <label for="fTerceiros">Atendido por</label>
     <select class="input" id="fTerceiros" onchange="render()" style="min-width:110px">
       <option value="">Todos</option>
-      <option value="nao">SAMU</option>
-      <option value="sim">Terceiros</option>
+      <option value="samu">SAMU</option>
+      <option value="terceiros">Terceiros</option>
+      <option value="qta">QTA</option>
     </select>
   </div>
   <div class="field">
@@ -496,6 +500,11 @@ tbody tr:hover { background: #fafbfd; }
       <div class="kpi-label">Atendidos por terceiros</div>
       <div class="kpi-value" id="kTerceiros">0</div>
       <div class="kpi-sub" id="kTerceirosSub">—</div>
+    </div>
+    <div class="kpi" style="--kpi-color: var(--navy2)">
+      <div class="kpi-label">QTA</div>
+      <div class="kpi-value" id="kQta">0</div>
+      <div class="kpi-sub" id="kQtaSub">—</div>
     </div>
     <div class="kpi" style="--kpi-color: var(--navy2)">
       <div class="kpi-label">Idade média</div>
@@ -634,9 +643,14 @@ tbody tr:hover { background: #fafbfd; }
         <small>marque se o paciente evoluiu a óbito</small>
       </label>
       <label class="check-obito check-terceiros full" for="iTerceiros">
-        <input type="checkbox" id="iTerceiros" onchange="aplicarTerceiros()">
+        <input type="checkbox" id="iTerceiros" onchange="aplicarTerceiros(this)">
         <strong>Atendido por terceiros</strong>
         <small>bombeiros ou familiares já levaram o paciente</small>
+      </label>
+      <label class="check-obito check-qta full" for="iQta">
+        <input type="checkbox" id="iQta" onchange="aplicarTerceiros(this)">
+        <strong>QTA</strong>
+        <small>ocorrência cancelada</small>
       </label>
       <div class="err" id="formErro"></div>
     </div>
@@ -672,7 +686,7 @@ tbody tr:hover { background: #fafbfd; }
 <script>
 // ───────────────────────── Armazenamento ─────────────────────────
 const STORAGE_KEY = 'samu_atendimentos_v1';
-const CAMPOS = ['data', 'hora', 'bairro', 'idade', 'sexo', 'motivo', 'obito', 'terceiros'];
+const CAMPOS = ['data', 'hora', 'bairro', 'idade', 'sexo', 'motivo', 'obito', 'terceiros', 'qta'];
 const CABECALHO_CSV = { motivo: 'especialidade' };
 let DADOS = [];
 let EXEMPLO = false;
@@ -745,6 +759,7 @@ const FAIXAS = (() => {
   f.push({ id: '91+', rotulo: '91+', min: 91, max: Infinity });
   return f;
 })();
+function situacao(d) { return d.qta ? 'qta' : d.terceiros ? 'terceiros' : 'samu'; }
 function temIdade(d) { return typeof d.idade === 'number' && !isNaN(d.idade); }
 function faixaEtaria(idade) { return typeof idade === 'number' && !isNaN(idade) ? FAIXAS.find(f => idade >= f.min && idade <= f.max).id : null; }
 function rotuloFaixa(id) { const f = FAIXAS.find(f => f.id === id); return f.id === '0-1' ? '0–1 ano (neonatal)' : `${f.rotulo} anos`; }
@@ -770,7 +785,7 @@ function filtrar() {
   const ini = fIni.value, fim = fFim.value;
   const b = fBairro.value, s = fSexo.value, i = fIdade.value, t = fTurno.value, e = fEsp.value, o = fObito.value, tc = fTerceiros.value;
   return DADOS.filter(d => {
-    if (tc && !!d.terceiros !== (tc === 'sim')) return false;
+    if (tc && situacao(d) !== tc) return false;
     if (ini && d.data < ini) return false;
     if (fim && d.data > fim) return false;
     if (b && d.bairro !== b) return false;
@@ -847,6 +862,7 @@ function estatisticas(data) {
     picoSemana: picoS >= 0 ? DIAS_SEMANA[picoS] : '—',
     picoSemanaQtd: picoS >= 0 ? porSemana[picoS] : 0,
     terceiros: data.filter(d => d.terceiros).length,
+    qta: data.filter(d => d.qta).length,
     faixaTop: nIdades ? faixaTop : null,
     mediaDia: dias ? total / dias : 0,
     idadeMedia: nIdades ? Math.round(idades.reduce((a, n) => a + n, 0) / nIdades) : null,
@@ -866,6 +882,8 @@ function renderKpis(e) {
   kObitosSub.textContent = e.total ? `${pct(e.obitos, e.total)} dos atendimentos` : '—';
   kTerceiros.textContent = e.terceiros;
   kTerceirosSub.textContent = e.total ? `${pct(e.terceiros, e.total)} dos atendimentos` : '—';
+  kQta.textContent = e.qta;
+  kQtaSub.textContent = e.total ? `${pct(e.qta, e.total)} dos atendimentos` : '—';
   kIdade.textContent = e.idadeMedia ?? '—';
   kIdadeRange.textContent = e.faixaTop ? `anos · faixa mais atendida: ${rotuloFaixa(e.faixaTop[0])}` : 'anos';
   kSemana.textContent = e.picoSemana;
@@ -1009,7 +1027,7 @@ function renderTabela() {
       <td class="mono">${temIdade(d) ? esc(d.idade) : '<span style="color:var(--muted)">—</span>'}</td>
       <td>${d.sexo ? `<span class="tag-sexo ${d.sexo === 'M' ? 'tag-m' : 'tag-f'}">${esc(d.sexo)}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
       <td style="color:var(--muted)">${esc(d.motivo || '—')}</td>
-      <td>${d.terceiros ? '<span class="tag-terceiros">TERCEIROS</span>' : d.obito ? '<span class="tag-obito">ÓBITO</span>' : '<span style="color:var(--muted)">—</span>'}</td>
+      <td>${d.qta ? '<span class="tag-qta">QTA</span>' : d.terceiros ? '<span class="tag-terceiros">TERCEIROS</span>' : d.obito ? '<span class="tag-obito">ÓBITO</span>' : '<span style="color:var(--muted)">—</span>'}</td>
       <td><div class="row-actions">
         <button class="icon-btn" title="Editar" onclick="abrirForm('${d.id}')">${ICON_EDIT}</button>
         <button class="icon-btn del" title="Excluir" onclick="excluir('${d.id}')">${ICON_DEL}</button>
@@ -1054,6 +1072,7 @@ function abrirForm(id) {
   iSexoF.checked = r?.sexo === 'F';
   iObito.checked = !!r?.obito;
   iTerceiros.checked = !!r?.terceiros;
+  iQta.checked = !!r?.qta;
   aplicarTerceiros();
   formErro.textContent = '';
   ovForm.classList.add('show');
@@ -1062,10 +1081,12 @@ function abrirForm(id) {
 
 function fecharForm() { ovForm.classList.remove('show'); }
 
-// "Atendido por terceiros": paciente levado por bombeiros/familiares antes da chegada do SAMU.
-// Registra apenas data, hora, bairro e especialidade — idade, sexo e óbito ficam desabilitados.
-function aplicarTerceiros() {
-  const t = iTerceiros.checked;
+// "Atendido por terceiros" (paciente levado por bombeiros/familiares antes da chegada do SAMU)
+// e "QTA" (ocorrência cancelada): registram apenas data, hora, bairro e especialidade —
+// idade, sexo e óbito ficam desabilitados. As duas opções são exclusivas entre si.
+function aplicarTerceiros(origem) {
+  if (origem?.checked) (origem === iQta ? iTerceiros : iQta).checked = false;
+  const t = iTerceiros.checked || iQta.checked;
   [campoIdade, campoSexo, campoObito].forEach(el => el.classList.toggle('desabilitado', t));
   iIdade.disabled = iSexoM.disabled = iSexoF.disabled = iObito.disabled = t;
   iIdade.required = !t;
@@ -1074,15 +1095,15 @@ function aplicarTerceiros() {
 
 function salvarForm(ev) {
   ev.preventDefault();
-  const terceiros = iTerceiros.checked;
-  const idade = terceiros ? null : parseInt(iIdade.value, 10);
-  const sexo = terceiros ? '' : iSexoM.checked ? 'M' : iSexoF.checked ? 'F' : '';
-  if (!terceiros) {
+  const terceiros = iTerceiros.checked, qta = iQta.checked, semPaciente = terceiros || qta;
+  const idade = semPaciente ? null : parseInt(iIdade.value, 10);
+  const sexo = semPaciente ? '' : iSexoM.checked ? 'M' : iSexoF.checked ? 'F' : '';
+  if (!semPaciente) {
     if (!sexo) { formErro.textContent = 'Selecione o sexo do paciente.'; return; }
     if (isNaN(idade) || idade < 0 || idade > 120) { formErro.textContent = 'Informe uma idade entre 0 e 120.'; return; }
   }
 
-  const campos = { data: iData.value, hora: iHora.value, bairro: iBairro.value.trim(), idade, sexo, motivo: iMotivo.value.trim(), obito: terceiros ? false : iObito.checked, terceiros };
+  const campos = { data: iData.value, hora: iHora.value, bairro: iBairro.value.trim(), idade, sexo, motivo: iMotivo.value.trim(), obito: semPaciente ? false : iObito.checked, terceiros, qta };
   if (iId.value) {
     const r = DADOS.find(d => d.id === iId.value);
     Object.assign(r, campos);
@@ -1099,7 +1120,7 @@ function salvarForm(ev) {
 
   if (salvarEOutro && !iId.value) {
     ['iHora', 'iBairro', 'iIdade', 'iMotivo'].forEach(id => document.getElementById(id).value = '');
-    iSexoM.checked = iSexoF.checked = iObito.checked = iTerceiros.checked = false;
+    iSexoM.checked = iSexoF.checked = iObito.checked = iTerceiros.checked = iQta.checked = false;
     aplicarTerceiros();
     formErro.textContent = '';
     iHora.focus();
@@ -1143,7 +1164,8 @@ const ALIASES = {
   motivo: 'motivo', 'motivo da ativacao': 'motivo', 'motivo / observacao': 'motivo', observacao: 'motivo', ocorrencia: 'motivo',
   especialidade: 'motivo', 'motivo / especialidade': 'motivo', 'motivo/especialidade': 'motivo',
   obito: 'obito', obitos: 'obito',
-  terceiros: 'terceiros', 'atendido por terceiros': 'terceiros'
+  terceiros: 'terceiros', 'atendido por terceiros': 'terceiros',
+  qta: 'qta'
 };
 let importPendente = null;
 
@@ -1200,8 +1222,10 @@ function normalizarRegistro(bruto) {
   r.motivo = String(r.motivo ?? '').trim();
   r.obito = r.obito === true || ['sim', 's', 'x', '1', 'true', 'obito'].includes(semAcento(r.obito ?? ''));
   r.terceiros = r.terceiros === true || ['sim', 's', 'x', '1', 'true'].includes(semAcento(r.terceiros ?? ''));
-  if (r.terceiros) { r.idade = null; r.sexo = ''; r.obito = false; }
-  const ok = r.data && r.hora && horaNum(r.hora) < 24 && r.bairro && (r.terceiros || (!isNaN(r.idade) && r.idade >= 0 && r.sexo));
+  r.qta = r.qta === true || ['sim', 's', 'x', '1', 'true'].includes(semAcento(r.qta ?? ''));
+  if (r.qta) r.terceiros = false;
+  if (r.terceiros || r.qta) { r.idade = null; r.sexo = ''; r.obito = false; }
+  const ok = r.data && r.hora && horaNum(r.hora) < 24 && r.bairro && (r.terceiros || r.qta || (!isNaN(r.idade) && r.idade >= 0 && r.sexo));
   return ok ? { id: novoId(), ...r } : null;
 }
 
@@ -1256,7 +1280,7 @@ function exportarCSV() {
   const extras = [...new Set(lista.flatMap(d => Object.keys(d)))].filter(k => k !== 'id' && !CAMPOS.includes(k));
   const colunas = [...CAMPOS, ...extras];
   const celula = v => { const s = String(v ?? ''); return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const valor = (d, c) => c === 'data' ? brData(d.data) : c === 'obito' || c === 'terceiros' ? (d[c] ? 'Sim' : 'Não') : d[c];
+  const valor = (d, c) => c === 'data' ? brData(d.data) : c === 'obito' || c === 'terceiros' || c === 'qta' ? (d[c] ? 'Sim' : 'Não') : d[c];
   const linhas = [colunas.map(c => CABECALHO_CSV[c] || c).join(';')].concat(lista.map(d => colunas.map(c => celula(valor(d, c))).join(';')));
   baixar(new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' }), `samu-atendimentos-${hoje()}.csv`);
   toast('Planilha exportada. Edite no Excel e use "Importar" para atualizar.');
@@ -1305,7 +1329,7 @@ async function exportarPDF() {
 
   // Indicadores
   const kpis = [
-    ['ATENDIMENTOS', String(e.total), `${e.dias} dia(s) · ${e.terceiros} terceiros`, RED],
+    ['ATENDIMENTOS', String(e.total), `${e.dias} dia(s) · ${e.terceiros} terc. · ${e.qta} QTA`, RED],
     ['ÓBITOS', String(e.obitos), pct(e.obitos, e.total), [43, 43, 43]],
     ['IDADE MÉDIA', String(e.idadeMedia ?? '—'), e.faixaTop ? `pico: ${rotuloFaixa(e.faixaTop[0])}` : '—', NAVY],
     ['HORÁRIO DE PICO', e.picoHora, `${e.picoQtd} atendimentos`, ORANGE],
@@ -1369,11 +1393,11 @@ async function exportarPDF() {
   });
   const linhaResumo = (nome, sub) => {
     const comIdade = sub.filter(temIdade);
-    return [nome, sub.length, pct(sub.length, e.total), sub.filter(d => d.obito).length, sub.filter(d => d.terceiros).length,
+    return [nome, sub.length, pct(sub.length, e.total), sub.filter(d => d.obito).length, sub.filter(d => d.terceiros).length, sub.filter(d => d.qta).length,
       sub.filter(d => d.sexo === 'M').length, sub.filter(d => d.sexo === 'F').length,
       comIdade.length ? Math.round(comIdade.reduce((a, d) => a + d.idade, 0) / comIdade.length) : '—'];
   };
-  const cabResumo = ['Atendimentos', '%', 'Óbitos', 'Terceiros', 'Masc.', 'Fem.', 'Idade média'];
+  const cabResumo = ['Atendimentos', '%', 'Óbitos', 'Terceiros', 'QTA', 'Masc.', 'Fem.', 'Idade média'];
 
   pdf.addPage('a4', 'l');
   resumo('Resumo por especialidade', ['Especialidade', ...cabResumo], e.especialidades.map(([n]) => linhaResumo(n, data.filter(d => especialidade(d) === n))), 22);
@@ -1387,8 +1411,8 @@ async function exportarPDF() {
 
   pdf.addPage('a4', 'l');
   pdf.autoTable({
-    head: [['Data', 'Dia', 'Horário', 'Bairro', 'Idade', 'Sexo', 'Motivo / especialidade', 'Óbito', 'Terceiros']],
-    body: ordenar(data).reverse().map(d => [brData(d.data), DIAS_SEMANA[diaSemana(d.data)].slice(0, 3), d.hora, d.bairro, temIdade(d) ? d.idade : '—', d.sexo || '—', d.motivo || '—', d.obito ? 'Sim' : '—', d.terceiros ? 'Sim' : '—']),
+    head: [['Data', 'Dia', 'Horário', 'Bairro', 'Idade', 'Sexo', 'Motivo / especialidade', 'Óbito', 'Terceiros', 'QTA']],
+    body: ordenar(data).reverse().map(d => [brData(d.data), DIAS_SEMANA[diaSemana(d.data)].slice(0, 3), d.hora, d.bairro, temIdade(d) ? d.idade : '—', d.sexo || '—', d.motivo || '—', d.obito ? 'Sim' : '—', d.terceiros ? 'Sim' : '—', d.qta ? 'Sim' : '—']),
     startY: 22,
     margin: { left: M, right: M, top: 22 },
     theme: 'striped',
