@@ -10,3 +10,9 @@ playwright.config.js
 scripts
 docs
 README.md
+.env*
+.vercel
+api
+lib
+vercel.json
+.vercelignore

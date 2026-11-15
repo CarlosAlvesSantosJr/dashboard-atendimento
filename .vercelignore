@@ -1,0 +1,14 @@
+# Somente index.html, assets/, api/, lib/ e package*.json vão para a Vercel
+.env*
+.idea
+tests
+test-results
+playwright-report
+scripts
+docs
+Dockerfile
+docker-compose.yml
+nginx.conf
+.dockerignore
+playwright.config.js
+README.md

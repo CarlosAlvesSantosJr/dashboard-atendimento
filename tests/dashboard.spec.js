@@ -228,9 +228,18 @@ test.describe('Cadastro diário', () => {
 
 test.describe('Filtros', () => {
   test('sexo, óbito, especialidade, faixa etária, período e limpar', async ({ page }) => {
+    // exemplos: 18 mulheres, uma delas registrada como "atendido por terceiros" (sem sexo)
     await page.selectOption('#fSexo', 'F');
-    await expect(kpi(page, 'kTotal')).toHaveText('18');
+    await expect(kpi(page, 'kTotal')).toHaveText('17');
     await page.selectOption('#fSexo', '');
+
+    await page.selectOption('#fTerceiros', 'terceiros');
+    await expect(kpi(page, 'kTotal')).toHaveText('2');
+    await page.selectOption('#fTerceiros', 'qta');
+    await expect(kpi(page, 'kTotal')).toHaveText('1');
+    await page.selectOption('#fTerceiros', 'samu');
+    await expect(kpi(page, 'kTotal')).toHaveText('37');
+    await page.selectOption('#fTerceiros', '');
 
     await page.selectOption('#fObito', 'sim');
     await expect(kpi(page, 'kTotal')).toHaveText('4');

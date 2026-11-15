@@ -4,7 +4,14 @@
 
 # Painel Estatístico de Atendimentos · SAMU 192
 
-Painel web para **lançar os atendimentos diários** do SAMU e **apresentar as métricas** de idade, bairro, horários de pico, dias da semana, especialidades e óbitos, com **relatório em PDF** e **planilha** para edição.
+[![Em produção](https://img.shields.io/badge/status-em%20produ%C3%A7%C3%A3o-2e9e5b?style=for-the-badge)](https://painel-samu192.vercel.app)
+[![Vercel](https://img.shields.io/badge/deploy-Vercel-000?style=for-the-badge&logo=vercel)](https://painel-samu192.vercel.app)
+[![Neon](https://img.shields.io/badge/banco-Neon%20Postgres-00e599?style=for-the-badge&logo=postgresql&logoColor=white)](https://neon.tech)
+[![Testes](https://img.shields.io/badge/testes-31%20passando-2e9e5b?style=for-the-badge&logo=playwright)](#testes)
+
+**🟢 Sistema em produção, usado pela coordenação do SAMU 192 para apresentar a produtividade do serviço.**
+
+🔗 **https://painel-samu192.vercel.app** (acesso restrito com senha)
 
 ![Painel](docs/images/01-painel.png)
 
@@ -12,19 +19,29 @@ Painel web para **lançar os atendimentos diários** do SAMU e **apresentar as m
 
 ---
 
+## O problema real que ele resolve
+
+A coordenação precisa **mostrar a produtividade do SAMU** com números: quantos atendimentos foram feitos, em que horários e dias, em quais bairros, de quais especialidades e com quantos óbitos. Sem uma ferramenta, isso exige juntar registros à mão e montar gráficos a cada apresentação.
+
+O painel resolve isso de ponta a ponta:
+
+1. **A equipe lança cada atendimento** em segundos, pelo computador ou pelo celular.
+2. **Os indicadores e gráficos se atualizam na hora**, para qualquer período, bairro ou especialidade.
+3. **A coordenação apresenta** direto do painel ou gera um **relatório PDF** pronto para reunião.
+
+Também registra corretamente as ocorrências em que o SAMU **foi acionado, mas não atendeu o paciente**: quando bombeiros ou familiares já o levaram (**Atendido por terceiros**) ou quando a ocorrência foi cancelada (**QTA**). Esses casos contam como acionamentos, sem distorcer idade, sexo e óbitos.
+
+---
+
 ## Sumário
 
 - [Funcionalidades](#funcionalidades)
 - [Como usar](#como-usar)
-  - [1. Lançar atendimentos](#1-lançar-atendimentos)
-  - [2. Filtrar e analisar](#2-filtrar-e-analisar)
-  - [3. Registros](#3-registros)
-  - [4. Importar e exportar planilha](#4-importar-e-exportar-planilha)
-  - [5. Relatório em PDF](#5-relatório-em-pdf)
-  - [6. Celular](#6-celular)
 - [Métricas calculadas](#métricas-calculadas)
-- [Instalação](#instalação)
-- [Onde ficam os dados](#onde-ficam-os-dados)
+- [Arquitetura em produção](#arquitetura-em-produção)
+- [Segurança e privacidade](#segurança-e-privacidade)
+- [Deploy (Vercel + Neon)](#deploy-vercel--neon)
+- [Rodar localmente](#rodar-localmente)
 - [Testes](#testes)
 - [Estrutura do projeto](#estrutura-do-projeto)
 
@@ -34,34 +51,46 @@ Painel web para **lançar os atendimentos diários** do SAMU e **apresentar as m
 
 | | |
 |---|---|
-| 📝 **Cadastro diário** | Data, horário da ocorrência, bairro, idade, sexo (M/F), motivo/especialidade e óbito |
-| 📊 **Indicadores** | Atendimentos, óbitos, idade média, horário de pico, dia da semana de pico, bairro e especialidade principais |
+| 🟢 **Em produção** | Publicado na Vercel com banco Postgres (Neon), dados compartilhados entre todos os usuários |
+| 🔐 **Acesso restrito** | Login com senha da coordenação, sessão em cookie seguro |
+| 📝 **Cadastro diário** | Data, horário, bairro, idade, sexo, especialidade, óbito, **atendido por terceiros** e **QTA** |
+| 📊 **9 indicadores** | Atendimentos, óbitos, terceiros, QTA, idade média, horário e dia de pico, bairro e especialidade principais |
 | 📈 **8 gráficos** | Horários de pico, dia da semana, faixa etária, bairros, especialidades × óbitos, óbitos, sexo e evolução diária |
-| 🔎 **Filtros** | Período, bairro, sexo, faixa etária, especialidade, óbito e turno (dia/noite) |
-| 📄 **PDF** | Relatório com logo, indicadores, gráficos, resumos e lista completa |
-| 📥 **Planilha** | Exporta CSV (abre no Excel), permite editar/acrescentar colunas e importar de volta |
-| 📱 **Responsivo** | Funciona no computador, tablet e celular |
-| 🐳 **Docker** | Sobe em qualquer máquina com um comando |
+| 🔎 **Filtros** | Período, bairro, sexo, faixa etária, especialidade, óbito, atendido por (SAMU/terceiros/QTA) e turno |
+| 📄 **PDF** | Relatório com logo, indicadores, gráficos, resumos e lista completa, pronto para apresentação |
+| 📥 **Planilha** | Exporta CSV (abre no Excel), permite editar e importar de volta |
+| 📱 **Responsivo** | Computador, tablet e celular |
+| 🐳 **Docker** | Também roda isolado numa máquina local, sem banco |
 
 ---
 
 ## Como usar
 
+### Acesso
+
+Abra **https://painel-samu192.vercel.app** e entre com a senha da coordenação. A sessão dura 7 dias no mesmo navegador; use **Sair** em computadores compartilhados.
+
+![Login](docs/images/00-login.png)
+
 ### 1. Lançar atendimentos
 
-Clique em **Novo atendimento**. A data já vem preenchida com o dia atual e bairro/especialidade sugerem valores já cadastrados. Marque **Óbito** quando o paciente evoluir a óbito.
+Clique em **Novo atendimento**. A data já vem preenchida com o dia atual, e bairro e especialidade sugerem valores já cadastrados. Marque **Óbito** quando o paciente evoluir a óbito.
 
-Use **Salvar e cadastrar outro** para lançar vários atendimentos em sequência sem fechar o formulário.
+Use **Salvar e cadastrar outro** para lançar vários atendimentos em sequência.
 
 ![Cadastro de atendimento](docs/images/03-cadastro.png)
 
+#### Atendido por terceiros e QTA
+
+Quando o SAMU chega e **bombeiros ou familiares já levaram o paciente**, marque **Atendido por terceiros**. Quando a ocorrência é **cancelada**, marque **QTA**. Nos dois casos, **idade, sexo e óbito ficam desabilitados** e o registro guarda só data, hora, bairro e especialidade. As duas opções são exclusivas entre si.
+
+![Atendido por terceiros](docs/images/11-terceiros-qta.png)
+
 ### 2. Filtrar e analisar
 
-Todos os indicadores e gráficos respondem aos filtros. No exemplo abaixo: especialidade **Trauma** no turno **dia**.
+Todos os indicadores e gráficos respondem aos filtros. No exemplo: especialidade **Trauma** no turno **dia**.
 
 ![Filtros aplicados](docs/images/04-filtros.png)
-
-Visão completa do painel com todos os gráficos:
 
 <details>
 <summary><strong>Ver painel completo</strong></summary>
@@ -72,25 +101,25 @@ Visão completa do painel com todos os gráficos:
 
 ### 3. Registros
 
-Tabela com busca por bairro ou especialidade, paginação e botões para **editar** ✏️ e **excluir** 🗑️ cada atendimento. Óbitos aparecem destacados.
+Tabela com busca, paginação e botões para **editar** ✏️ e **excluir** 🗑️. A coluna **Observações** destaca **ÓBITO**, **TERCEIROS** e **QTA**.
 
 ![Registros de atendimento](docs/images/05-registros.png)
 
 ### 4. Importar e exportar planilha
 
 - **Exportar planilha** gera um `.csv` que abre direto no Excel.
-- Edite, corrija ou **acrescente colunas** (ex.: `unidade`, `desfecho`) — elas são preservadas.
-- **Importar** mostra um resumo antes de aplicar e pergunta se deve **adicionar** aos dados atuais ou **substituir** tudo. Linhas incompletas são ignoradas e informadas.
+- Edite, corrija ou **acrescente colunas** (ex.: `unidade`), que são preservadas, inclusive no banco.
+- **Importar** mostra um resumo e pergunta se deve **adicionar** aos dados atuais ou **substituir** tudo.
 
 ![Importação](docs/images/06-importacao.png)
 
 **Formato da planilha** (separador `;` ou `,`):
 
 ```csv
-data;hora;bairro;idade;sexo;especialidade;obito
-02/11/2026;08:15;Centro;0;F;Neonatal;Não
-02/11/2026;09:30;Vila Nova;34;M;Trauma;Não
-02/11/2026;21:00;Lapa;67;F;Cardiológico;Sim
+data;hora;bairro;idade;sexo;especialidade;obito;terceiros;qta
+02/11/2026;08:15;Centro;0;F;Neonatal;Não;Não;Não
+02/11/2026;09:30;Vila Nova;;;Trauma;Não;Sim;Não
+02/11/2026;21:00;Lapa;67;F;Cardiológico;Sim;Não;Não
 ```
 
 | Coluna | Obrigatória | Aceita |
@@ -98,22 +127,22 @@ data;hora;bairro;idade;sexo;especialidade;obito
 | `data` | não (padrão: hoje) | `dd/mm/aaaa` ou `aaaa-mm-dd` |
 | `hora` | sim | `08:15`, `8:15`, `8h` |
 | `bairro` | sim | texto |
-| `idade` | sim | número (0 a 120) |
-| `sexo` | sim | `M`, `F`, `Masculino`, `Feminino` |
+| `idade` | sim, exceto terceiros/QTA | número (0 a 120) |
+| `sexo` | sim, exceto terceiros/QTA | `M`, `F`, `Masculino`, `Feminino` |
 | `especialidade` | não | texto (também aceita `motivo`) |
 | `obito` | não | `Sim`, `S`, `X`, `1` = óbito |
-
-Também é possível importar `.json` (inclusive no formato da versão anterior do painel).
+| `terceiros` | não | `Sim`, `S`, `X`, `1` = atendido por terceiros |
+| `qta` | não | `Sim`, `S`, `X`, `1` = ocorrência cancelada |
 
 ### 5. Relatório em PDF
 
-**Exportar PDF** gera um relatório A4 paisagem com os filtros aplicados:
+**Exportar PDF** gera um relatório A4 paisagem com os filtros aplicados, pronto para a apresentação da coordenação:
 
 | Página | Conteúdo |
 |---|---|
-| 1 | Cabeçalho com logo, 7 indicadores, horários de pico, dia da semana e faixa etária |
+| 1 | Cabeçalho com logo, indicadores, horários de pico, dia da semana e faixa etária |
 | 2 | Bairros, especialidades × óbitos, óbitos, sexo e evolução diária |
-| 3+ | Resumos por especialidade, bairro, faixa etária e dia da semana (com óbitos) |
+| 3+ | Resumos por especialidade, bairro, faixa etária e dia da semana (com óbitos, terceiros e QTA) |
 | final | Lista completa de registros |
 
 📎 [Baixar PDF de exemplo](docs/relatorio-exemplo.pdf)
@@ -126,102 +155,146 @@ Também é possível importar `.json` (inclusive no formato da versão anterior 
 
 <img src="docs/images/07-celular.png" alt="Versão celular" width="300"/>
 
+> As imagens desta documentação usam **dados fictícios**. Nenhum dado real de produção é exibido.
+
 ---
 
 ## Métricas calculadas
 
 | Métrica | Como é calculada |
 |---|---|
-| **Faixa etária** | 0–1 ano (**neonatal**), 2–5 anos e depois **de 5 em 5 anos** (6–10, 11–15 … 86–90, 91+) |
+| **Faixa etária** | 0–1 ano (**neonatal**), 2–5 anos e depois **de 5 em 5 anos** (6–10 … 86–90, 91+) |
 | **Horário de pico** | Hora cheia (00h–23h) com mais ocorrências. Dia = 07h–19h, noite = 19h–07h |
 | **Dia da semana** | Dia (seg–dom) com mais ocorrências; indica empate quando houver |
 | **Bairro** | Ranking dos 10 bairros com mais atendimentos |
 | **Especialidades** | Atendimentos e óbitos por especialidade |
 | **Óbitos** | Total e percentual sobre os atendimentos |
-| **Idade média** | Média das idades e faixa mais atendida |
+| **Terceiros / QTA** | Total e percentual de acionamentos sem atendimento ao paciente |
+| **Idade média** | Média das idades informadas (terceiros e QTA não entram) e faixa mais atendida |
 
 ---
 
-## Instalação
+## Arquitetura em produção
 
-### Com Docker (recomendado)
-
-Pré-requisitos: [Git](https://git-scm.com/) e [Docker Desktop](https://www.docker.com/products/docker-desktop/).
-
-```bash
-git clone https://github.com/CarlosAlvesSantosJr/dashboard-atentimento.git
-cd dashboard-atentimento
-docker compose up -d --build
+```
+ Navegador (index.html)                 Vercel (região gru1 · São Paulo)           Neon (sa-east-1 · São Paulo)
+┌────────────────────────┐   HTTPS    ┌───────────────────────────────┐   SQL    ┌──────────────────────────┐
+│ Painel, gráficos, PDF  │──────────▶│ /api/sessao       login/sair   │────────▶│ Postgres serverless      │
+│ Chart.js · jsPDF       │◀──────────│ /api/atendimentos CRUD/import  │◀────────│ tabela atendimentos      │
+└────────────────────────┘  cookie    └───────────────────────────────┘          └──────────────────────────┘
 ```
 
-Acesse **http://localhost:8080**.
+- **Frontend**: um único `index.html` (HTML, CSS e JavaScript puro), servido como arquivo estático pela CDN da Vercel.
+- **API**: duas funções serverless Node.js em [`api/`](api/), com regras de negócio e validação em [`lib/`](lib/).
+- **Banco**: [Neon](https://neon.tech) Postgres serverless, via driver HTTP `@neondatabase/serverless`. A tabela é criada automaticamente no primeiro acesso.
+- **Funções e banco na mesma região (São Paulo)**, para respostas rápidas.
+- **Plano gratuito** da Vercel (Hobby) e do Neon (Free).
 
-Se a porta 8080 já estiver em uso, escolha outra:
-
-```bash
-# Linux / macOS / Git Bash
-PORTA=8085 docker compose up -d --build
-
-# PowerShell
-$env:PORTA=8085; docker compose up -d --build
-```
-
-| Ação | Comando |
-|---|---|
-| Parar | `docker compose down` |
-| Atualizar após `git pull` | `docker compose up -d --build` |
-| Ver logs | `docker compose logs -f` |
-
-Para acessar de outros computadores da rede: `http://IP-DA-MAQUINA:8080`.
-
-### Sem Docker
-
-```bash
-npm start   # http://localhost:8080
-```
-
-Ou simplesmente abra o `index.html` no navegador.
-
-> A página carrega Chart.js e jsPDF via CDN, então o navegador precisa de acesso à internet.
+O mesmo `index.html` também funciona **sem servidor**: quando não encontra a API (Docker, arquivo local), salva os dados no navegador (`localStorage`).
 
 ---
 
-## Onde ficam os dados
+## Segurança e privacidade
 
-Os atendimentos são salvos **no navegador** de quem usa o painel (`localStorage`). Cada computador, navegador e endereço (ex.: `localhost:8080` × arquivo aberto direto) tem seus próprios dados.
+O painel guarda dados de atendimentos de urgência. Por isso:
 
-Para **backup** ou para **levar os dados para outra máquina**:
+- **Sem nome, documento ou endereço do paciente**: só bairro, idade, sexo, especialidade e desfecho.
+- **Toda a API exige login.** A senha fica numa variável de ambiente da Vercel, nunca no código.
+- **Sessão em cookie `HttpOnly`, `Secure`, `SameSite=Strict`**, assinado com HMAC-SHA256 e válido por 7 dias.
+- **Comparação de senha em tempo constante** e atraso nas tentativas erradas, contra adivinhação.
+- **Validação no servidor** de todos os campos, com consultas parametrizadas (sem SQL injection).
+- **Cabeçalhos de segurança**: HSTS, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`.
+- Só `index.html`, `assets/`, `api/` e `lib/` são publicados (`.vercelignore`); testes, docs e segredos ficam de fora.
 
-1. **Exportar planilha** na origem.
-2. **Importar** no destino → *Substituir todos os dados* ou *Adicionar aos dados atuais*.
+---
 
-> Na primeira abertura são exibidos dados de exemplo, que somem ao cadastrar o primeiro atendimento ou ao clicar em **Remover exemplos**.
+## Deploy (Vercel + Neon)
+
+### Variáveis de ambiente
+
+| Variável | Origem | Uso |
+|---|---|---|
+| `DATABASE_URL` | Criada pela integração Neon da Vercel | Conexão com o Postgres |
+| `APP_SENHA` | Definida manualmente | Senha de acesso da coordenação |
+| `APP_SEGREDO` | Definida manualmente (32+ caracteres aleatórios) | Assina os cookies de sessão |
+
+### Do zero
+
+```bash
+npm i -g vercel
+vercel login
+vercel link                                  # cria/vincula o projeto
+vercel integration add neon                  # cria o banco Neon (plano Free) e a DATABASE_URL
+vercel env add APP_SENHA production          # digite a senha
+vercel env add APP_SEGREDO production        # cole um valor aleatório longo
+vercel deploy --prod
+```
+
+### Trocar a senha de acesso
+
+```bash
+vercel env rm APP_SENHA production
+vercel env add APP_SENHA production
+vercel deploy --prod
+```
+
+Para **desconectar todos os usuários**, troque também o `APP_SEGREDO`.
+
+---
+
+## Rodar localmente
+
+### Com Docker (sem banco, dados no navegador)
+
+```bash
+git clone https://github.com/CarlosAlvesSantosJr/dashboard-atendimento.git
+cd dashboard-atendimento
+docker compose up -d --build     # http://localhost:8080
+```
+
+Porta ocupada? `PORTA=8085 docker compose up -d --build` (PowerShell: `$env:PORTA=8085; docker compose up -d --build`).
+
+### Com Node, sem banco
+
+```bash
+npm start                        # http://localhost:8080
+```
+
+### Com Node, usando o banco Neon
+
+```bash
+vercel env pull .env.local       # baixa DATABASE_URL
+# defina DATABASE_URL, APP_SENHA e APP_SEGREDO no terminal e rode:
+API_LOCAL=1 npm start
+```
 
 ---
 
 ## Testes
 
-22 testes end-to-end com [Playwright](https://playwright.dev/), executados no Google Chrome:
+**31 testes end-to-end** com [Playwright](https://playwright.dev/) no Google Chrome. Os testes de API rodam **contra o Neon de verdade**, numa tabela isolada (`atendimentos_teste`) que é apagada ao final, sem tocar nos dados de produção.
 
 ```bash
 npm install
-npm test                                   # sobe um servidor local e testa
+vercel env pull .env.local                 # opcional: habilita os testes de banco
+npm test
 BASE_URL=http://localhost:8080 npm test    # testa o container Docker
 ```
 
 | Grupo | O que é verificado |
 |---|---|
 | Carregamento | Dados de exemplo, indicadores, 8 gráficos, imagens |
-| Regras de negócio | Faixas etárias, turno, dia da semana, normalização de datas/horas/sexo/óbito |
-| Cadastro | Novo, salvar e cadastrar outro, validação, edição, exclusão, persistência, proteção contra HTML |
-| Filtros | Sexo, óbito, especialidade, faixa etária, período, limpar, busca |
-| Importação | CSV com `;` e acentos, mesclar, JSON antigo, arquivo inválido |
-| Exportação | CSV ida e volta com colunas extras, PDF válido, aviso sem dados |
+| Regras de negócio | Faixas etárias, turno, dia da semana, normalização da importação |
+| Cadastro | Novo, terceiros, QTA, salvar e cadastrar outro, validação, edição, exclusão, persistência, proteção contra HTML |
+| Filtros | Sexo, óbito, atendido por, especialidade, faixa etária, período, limpar, busca |
+| Importação / Exportação | CSV com `;` e acentos, mesclar, JSON antigo, CSV ida e volta, PDF |
+| **API** | Bloqueio sem login, senha errada, cookie adulterado, CRUD, validação no servidor, SQL injection, importação de 300 registros |
+| **Modo nuvem** | Login, gravação no banco, persistência após recarregar, exclusão e sair |
 | Layout | Celular sem rolagem horizontal |
 
 Sem Chrome instalado: `npx playwright install chromium` e `PW_CHANNEL=chromium npm test`.
 
-Para regenerar as imagens desta documentação: `npm run screenshots`.
+Para regenerar as imagens: `npm run screenshots` e `python scripts/pdf-imagens.py` (requer `pip install pymupdf`).
 
 ---
 
@@ -229,21 +302,23 @@ Para regenerar as imagens desta documentação: `npm run screenshots`.
 
 ```
 ├── index.html              # Aplicação completa (HTML, CSS e JavaScript)
-├── assets/
-│   ├── samu.jpg            # Imagem do cabeçalho
-│   ├── samu-logo.jpg       # Logo (ícone, modais)
-│   └── samu-img.js         # Imagens em base64 usadas no PDF
-├── docs/
-│   ├── images/             # Capturas de tela desta documentação
-│   └── relatorio-exemplo.pdf
+├── api/
+│   ├── sessao.js           # Login, verificação de sessão e sair
+│   └── atendimentos.js     # Listar, cadastrar, importar, editar e excluir
+├── lib/
+│   ├── auth.js             # Senha, cookie assinado (HMAC)
+│   ├── db.js               # Neon: tabela, validação e consultas
+│   └── http.js             # Respostas JSON e tratamento de erros
+├── assets/                 # Imagens do SAMU (cabeçalho, logo, PDF)
+├── docs/                   # Capturas de tela e PDF de exemplo
 ├── tests/
-│   ├── dashboard.spec.js   # Testes Playwright
-│   └── server.js           # Servidor estático local
-├── scripts/screenshots.js  # Gera as imagens da documentação
-├── Dockerfile              # Imagem nginx
-├── nginx.conf
-├── docker-compose.yml
+│   ├── dashboard.spec.js   # Testes da interface
+│   ├── api.spec.js         # Testes da API e do modo nuvem (Neon)
+│   └── server.js           # Servidor local (estático + API opcional)
+├── scripts/                # Geração das imagens da documentação
+├── vercel.json             # Região, cabeçalhos de segurança e cache
+├── Dockerfile · nginx.conf · docker-compose.yml
 └── playwright.config.js
 ```
 
-**Tecnologias:** HTML/CSS/JavaScript puro · [Chart.js](https://www.chartjs.org/) · [jsPDF](https://github.com/parallax/jsPDF) + AutoTable · nginx · Docker · Playwright
+**Tecnologias:** JavaScript · Node.js · Vercel Serverless Functions · Neon Postgres · [Chart.js](https://www.chartjs.org/) · [jsPDF](https://github.com/parallax/jsPDF) · Playwright · Docker · nginx

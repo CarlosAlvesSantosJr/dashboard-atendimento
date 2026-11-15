@@ -3,8 +3,8 @@ const { chromium } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 
-process.env.PORT = '8098';
-require('../tests/server.js');
+const { criarServidor } = require('../tests/server.js');
+criarServidor().listen(8098);
 
 const OUT = path.resolve(__dirname, '..', 'docs', 'images');
 const URL = 'http://localhost:8098';
@@ -27,9 +27,15 @@ const CSV_EXEMPLO = '﻿data;hora;bairro;idade;sexo;especialidade;obito\r\n' +
     console.log('  ✓', nome);
   };
 
+  // Capturas com dados fictícios (nunca dados reais de produção).
+  // Esconde o aviso de "dados de exemplo" e mostra a barra como em produção (selo do banco + Sair).
+  const comoProducao = p => p.evaluate(() => { EXEMPLO = false; document.body.classList.add('nuvem'); render(); });
+
   await page.goto(URL);
-  // Esconde o aviso de "dados de exemplo" nas capturas
-  await page.evaluate(() => { EXEMPLO = false; render(); });
+  await comoProducao(page);
+  await page.evaluate(() => mostrarLogin());
+  await foto('00-login.png');
+  await page.evaluate(() => ovLogin.classList.remove('show'));
 
   await foto('01-painel.png');
   await foto('02-painel-completo.png', { fullPage: true });
@@ -44,6 +50,17 @@ const CSV_EXEMPLO = '﻿data;hora;bairro;idade;sexo;especialidade;obito\r\n' +
   await page.locator('#iBairro').pressSequentially('Vila Esperança');
   await page.locator('#iMotivo').click();
   await foto('03-cadastro.png');
+  await page.getByRole('button', { name: 'Cancelar' }).click();
+
+  // Ocorrência em que o paciente já tinha sido levado: só data, hora, bairro e especialidade
+  await page.getByRole('button', { name: 'Novo atendimento' }).click();
+  await page.waitForTimeout(200);
+  await page.fill('#iHora', '16:40');
+  await page.locator('#iBairro').pressSequentially('Centro');
+  await page.fill('#iMotivo', 'Cardiológico');
+  await page.check('#iTerceiros');
+  await page.locator('#iMotivo').click();
+  await foto('11-terceiros-qta.png');
   await page.getByRole('button', { name: 'Cancelar' }).click();
 
   await page.selectOption('#fEsp', 'Trauma');
@@ -70,7 +87,7 @@ const CSV_EXEMPLO = '﻿data;hora;bairro;idade;sexo;especialidade;obito\r\n' +
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: 'pt-BR', isMobile: true });
   const cel = await mobile.newPage();
   await cel.goto(URL);
-  await cel.evaluate(() => { EXEMPLO = false; render(); });
+  await comoProducao(cel);
   await cel.waitForTimeout(600);
   await cel.screenshot({ path: path.join(OUT, '07-celular.png') });
   console.log('  ✓ 07-celular.png');

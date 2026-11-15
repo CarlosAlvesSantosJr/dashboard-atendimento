@@ -341,6 +341,18 @@ tbody tr:hover { background: #fafbfd; }
 .tag-terceiros { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px; padding: 3px 8px; border-radius: 6px; background: #fff4e8; color: #b35c00; border: 1px solid #f5c99a; }
 .tag-obito { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px; padding: 3px 8px; border-radius: 6px; background: #2b2b2b; color: #fff; }
 .err { color: var(--red); font-size: 13px; min-height: 18px; grid-column: span 2; }
+/* ── LOGIN (modo nuvem) ── */
+.so-nuvem { display: none !important; }
+body.nuvem .so-nuvem { display: inline-flex !important; }
+.overlay.login { z-index: 70; background: rgba(13,33,55,.82); backdrop-filter: blur(6px); }
+.modal-login { max-width: 400px; }
+.login-body { padding: 22px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+.login-body p { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.login-body .input { width: 100%; }
+.login-body .btn { justify-content: center; padding: 11px 15px; }
+.selo-nuvem { align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.selo-nuvem::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #2e9e5b; }
+button:disabled { opacity: .6; cursor: progress; }
 .import-opts { padding: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; color: var(--muted); }
 .import-opts strong { color: var(--text); }
 
@@ -417,7 +429,9 @@ tbody tr:hover { background: #fafbfd; }
     Exportar PDF
   </button>
   <span class="spacer"></span>
+  <span class="selo-nuvem so-nuvem" title="Dados salvos no banco e compartilhados com a coordenação">Banco de dados online</span>
   <button class="btn btn-danger-ghost" onclick="limparTudo()">Apagar todos os dados</button>
+  <button class="btn btn-ghost so-nuvem" onclick="sair()">Sair</button>
   <input type="file" id="fileInput" accept=".json,.csv,.txt" hidden onchange="lerArquivo(this)">
 </div>
 
@@ -681,17 +695,107 @@ tbody tr:hover { background: #fafbfd; }
   </div>
 </div>
 
+<!-- MODAL: acesso restrito (apenas quando o painel roda com banco na nuvem) -->
+<div class="overlay login" id="ovLogin">
+  <form class="modal modal-login" onsubmit="entrar(event)">
+    <div class="modal-head">
+      <img src="assets/samu-logo.jpg" alt="">
+      <h2>Acesso restrito</h2>
+    </div>
+    <div class="login-body">
+      <p>Painel de produtividade do SAMU 192. Informe a senha de acesso da coordenação.</p>
+      <div class="field">
+        <label for="lSenha">Senha</label>
+        <input class="input" type="password" id="lSenha" autocomplete="current-password" required>
+      </div>
+      <div class="err" id="loginErro" role="alert"></div>
+      <button type="submit" class="btn btn-primary" id="btnEntrar">Entrar</button>
+    </div>
+  </form>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 // ───────────────────────── Armazenamento ─────────────────────────
+// Dois modos:
+//  • 'nuvem' — publicado na Vercel: dados no banco Neon via /api, com login da coordenação.
+//  • 'local' — sem API (Docker/arquivo/testes): dados no localStorage do navegador.
 const STORAGE_KEY = 'samu_atendimentos_v1';
 const CAMPOS = ['data', 'hora', 'bairro', 'idade', 'sexo', 'motivo', 'obito', 'terceiros', 'qta'];
 const CABECALHO_CSV = { motivo: 'especialidade' };
 let DADOS = [];
 let EXEMPLO = false;
+let MODO = 'local';
+
+async function api(metodo, caminho, corpo) {
+  const r = await fetch('/api/' + caminho, {
+    method: metodo,
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: corpo ? { 'Content-Type': 'application/json' } : {},
+    body: corpo ? JSON.stringify(corpo) : undefined
+  });
+  const json = await r.json().catch(() => ({}));
+  if (r.status === 401 && caminho !== 'sessao') { mostrarLogin(); throw new Error('Sessão expirada. Entre novamente.'); }
+  if (!r.ok) throw new Error(json.erro || `Erro ${r.status} no servidor`);
+  return json;
+}
+
+// Retorna { autenticado } quando existe API (modo nuvem) ou null quando não existe (modo local).
+async function detectarApi() {
+  try {
+    const r = await fetch('/api/sessao', { cache: 'no-store', credentials: 'same-origin' });
+    if (!r.ok || !(r.headers.get('content-type') || '').includes('application/json')) return null;
+    return await r.json();
+  } catch (e) { return null; }
+}
+
+async function carregarNuvem() {
+  try {
+    DADOS = (await api('GET', 'atendimentos')).registros;
+    EXEMPLO = false;
+  } catch (e) {
+    toast('Não foi possível carregar os atendimentos: ' + e.message, true);
+  }
+  atualizarListas();
+  render();
+}
+
+function mostrarLogin() {
+  ovForm.classList.remove('show');
+  ovImport.classList.remove('show');
+  ovLogin.classList.add('show');
+  setTimeout(() => lSenha.focus(), 50);
+}
+
+async function entrar(ev) {
+  ev.preventDefault();
+  loginErro.textContent = '';
+  btnEntrar.disabled = true;
+  try {
+    await api('POST', 'sessao', { senha: lSenha.value });
+    lSenha.value = '';
+    ovLogin.classList.remove('show');
+    await carregarNuvem();
+  } catch (e) {
+    loginErro.textContent = e.message;
+    lSenha.select();
+  } finally {
+    btnEntrar.disabled = false;
+  }
+}
+
+async function sair() {
+  try { await api('DELETE', 'sessao'); } catch (e) { /* sai mesmo assim */ }
+  DADOS = [];
+  atualizarListas();
+  render();
+  mostrarLogin();
+}
 
 function salvar() {
+  if (MODO === 'nuvem') return; // no modo nuvem cada alteração já é gravada pela API
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ exemplo: EXEMPLO, registros: DADOS }));
   } catch (e) {
@@ -716,12 +820,12 @@ function carregar() {
 function gerarExemplos() {
   const base = [
     ["06:12","Centro","Cardiológico",56,"M"],["07:34","Vila Nova","Trauma",24,"F"],
-    ["08:05","Jardim América","Clínico",68,"M"],["08:22","Bela Vista","Trauma",31,"M"],
+    ["08:05","Jardim América","Clínico",68,"M"],["08:22","Bela Vista","Trauma",31,"M",false,"terceiros"],
     ["09:01","Santana","Neonatal",0,"F"],["09:45","Centro","Respiratório",74,"F"],
     ["10:10","Vila Nova","Trauma",45,"M"],["10:33","Liberdade","Trauma",38,"M"],
     ["11:02","Santana","Pediátrico",4,"F"],["11:20","Ipiranga","Neurológico",82,"F",true],
     ["11:55","Centro","Clínico",33,"M"],["12:14","Lapa","Obstétrico",27,"F"],
-    ["12:40","Bela Vista","Cardiológico",61,"M",true],["13:05","Jardim América","Trauma",29,"F"],
+    ["12:40","Bela Vista","Cardiológico",61,"M",true],["13:05","Jardim América","Trauma",29,"F",false,"terceiros"],
     ["13:22","Liberdade","Psiquiátrico",22,"F"],["13:50","Centro","Trauma",44,"M"],
     ["14:07","Vila Nova","Obstétrico",31,"F"],["14:30","Ipiranga","Cardiológico",53,"M"],
     ["14:55","Santana","Clínico",70,"F"],["15:18","Lapa","Trauma",41,"M"],
@@ -729,7 +833,7 @@ function gerarExemplos() {
     ["16:22","Vila Nova","Respiratório",78,"M",true],["17:03","Liberdade","Pediátrico",2,"F"],
     ["17:50","Centro","Trauma",55,"M"],["18:12","Jardim América","Neurológico",72,"F"],
     ["18:30","Santana","Psiquiátrico",14,"F"],["19:10","Ipiranga","Trauma",43,"M"],
-    ["19:35","Centro","Neurológico",21,"M"],["20:00","Lapa","Trauma",85,"F"],
+    ["19:35","Centro","Neurológico",21,"M",false,"qta"],["20:00","Lapa","Trauma",85,"F"],
     ["20:42","Vila Nova","Cardiológico",59,"M"],["21:05","Bela Vista","Obstétrico",37,"F"],
     ["21:50","Centro","Trauma",25,"M",true],["22:35","Liberdade","Psiquiátrico",18,"F"],
     ["22:58","Santana","Neurológico",79,"M"],["23:35","Centro","Clínico",32,"M"],
@@ -739,7 +843,8 @@ function gerarExemplos() {
   return base.map((r, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (i % 7));
-    return { id: novoId(), data: isoData(d), hora: r[0], bairro: r[1], motivo: r[2], idade: r[3], sexo: r[4], obito: !!r[5] };
+    const sit = r[6]; // 'terceiros' ou 'qta': sem dados do paciente
+    return { id: novoId(), data: isoData(d), hora: r[0], bairro: r[1], motivo: r[2], idade: sit ? null : r[3], sexo: sit ? '' : r[4], obito: !!r[5], terceiros: sit === 'terceiros', qta: sit === 'qta' };
   });
 }
 
@@ -1093,7 +1198,7 @@ function aplicarTerceiros(origem) {
   if (t) { iIdade.value = ''; iSexoM.checked = iSexoF.checked = iObito.checked = false; }
 }
 
-function salvarForm(ev) {
+async function salvarForm(ev) {
   ev.preventDefault();
   const terceiros = iTerceiros.checked, qta = iQta.checked, semPaciente = terceiros || qta;
   const idade = semPaciente ? null : parseInt(iIdade.value, 10);
@@ -1106,11 +1211,24 @@ function salvarForm(ev) {
   const campos = { data: iData.value, hora: iHora.value, bairro: iBairro.value.trim(), idade, sexo, motivo: iMotivo.value.trim(), obito: semPaciente ? false : iObito.checked, terceiros, qta };
   if (iId.value) {
     const r = DADOS.find(d => d.id === iId.value);
-    Object.assign(r, campos);
+    if (MODO === 'nuvem') {
+      const salvo = await gravando(() => api('PUT', 'atendimentos?id=' + encodeURIComponent(r.id), { ...r, ...campos }));
+      if (!salvo) return;
+      Object.assign(r, salvo.registro);
+    } else {
+      Object.assign(r, campos);
+    }
     toast('Atendimento atualizado.');
   } else {
     if (EXEMPLO) { DADOS = []; EXEMPLO = false; }
-    DADOS.push({ id: novoId(), ...campos });
+    const novo = { id: novoId(), ...campos };
+    if (MODO === 'nuvem') {
+      const salvo = await gravando(() => api('POST', 'atendimentos', { registros: [novo] }));
+      if (!salvo) return;
+      DADOS.push(...salvo.registros);
+    } else {
+      DADOS.push(novo);
+    }
     toast('Atendimento cadastrado.');
   }
   iData.dataset.ultima = campos.data;
@@ -1129,9 +1247,27 @@ function salvarForm(ev) {
   }
 }
 
-function excluir(id) {
+// Executa uma gravação na API bloqueando os botões do formulário; devolve null em caso de erro.
+async function gravando(fn) {
+  const botoes = ovForm.querySelectorAll('button[type=submit]');
+  botoes.forEach(b => b.disabled = true);
+  try {
+    return await fn();
+  } catch (e) {
+    formErro.textContent = 'Não foi possível salvar: ' + e.message;
+    return null;
+  } finally {
+    botoes.forEach(b => b.disabled = false);
+  }
+}
+
+async function excluir(id) {
   const r = DADOS.find(d => d.id === id);
   if (!r || !confirm(`Excluir o atendimento de ${brData(r.data)} às ${r.hora} (${r.bairro})?`)) return;
+  if (MODO === 'nuvem') {
+    try { await api('DELETE', 'atendimentos?id=' + encodeURIComponent(id)); }
+    catch (e) { toast('Não foi possível excluir: ' + e.message, true); return; }
+  }
   DADOS = DADOS.filter(d => d.id !== id);
   salvar();
   atualizarListas();
@@ -1148,9 +1284,18 @@ function removerExemplos() {
   toast('Exemplos removidos. Cadastre ou importe os atendimentos.');
 }
 
-function limparTudo() {
+async function limparTudo() {
   if (!DADOS.length) return;
   if (!confirm(`Apagar todos os ${DADOS.length} atendimentos? Recomenda-se exportar a planilha antes.`)) return;
+  if (MODO === 'nuvem') {
+    try { await api('DELETE', 'atendimentos?todos=1'); }
+    catch (e) { toast('Não foi possível apagar: ' + e.message, true); return; }
+    DADOS = [];
+    atualizarListas();
+    render();
+    toast('Todos os atendimentos foram apagados.');
+    return;
+  }
   removerExemplos();
 }
 
@@ -1261,11 +1406,27 @@ function lerArquivo(input) {
 
 function fecharImport() { ovImport.classList.remove('show'); importPendente = null; }
 
-function confirmarImport(modo) {
+async function confirmarImport(modo) {
   if (!importPendente) return;
+  const n = importPendente.length;
+  if (MODO === 'nuvem') {
+    const botoes = ovImport.querySelectorAll('button');
+    botoes.forEach(b => b.disabled = true);
+    try {
+      await api('POST', 'atendimentos', { modo, registros: importPendente });
+    } catch (e) {
+      toast('Erro ao importar: ' + e.message, true);
+      return;
+    } finally {
+      botoes.forEach(b => b.disabled = false);
+    }
+    fecharImport();
+    await carregarNuvem();
+    toast(`${n} atendimentos importados.`);
+    return;
+  }
   DADOS = modo === 'substituir' || EXEMPLO ? importPendente : DADOS.concat(importPendente);
   EXEMPLO = false;
-  const n = importPendente.length;
   fecharImport();
   salvar();
   atualizarListas();
@@ -1452,10 +1613,28 @@ document.addEventListener('keydown', ev => {
   if (ev.key === 'Escape') { fecharForm(); fecharImport(); }
 });
 
-carregar();
-montarFiltroIdade();
-atualizarListas();
-render();
+async function iniciar() {
+  montarFiltroIdade();
+  const sessao = await detectarApi();
+  if (!sessao) {
+    carregar();
+    atualizarListas();
+    render();
+    return;
+  }
+  MODO = 'nuvem';
+  document.body.classList.add('nuvem');
+  atualizarListas();
+  render();
+  if (sessao.autenticado) await carregarNuvem();
+  else mostrarLogin();
+  // Ao voltar para a aba, busca o que outros usuários cadastraram.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && !ovLogin.classList.contains('show') && !ovForm.classList.contains('show')) carregarNuvem();
+  });
+}
+
+iniciar();
 </script>
 </body>
 </html>
