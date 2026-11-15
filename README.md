@@ -4,14 +4,14 @@
 
 # Painel Estatístico de Atendimentos · SAMU 192
 
-[![Em produção](https://img.shields.io/badge/status-em%20produ%C3%A7%C3%A3o-2e9e5b?style=for-the-badge)](https://painel-samu192.vercel.app)
-[![Vercel](https://img.shields.io/badge/deploy-Vercel-000?style=for-the-badge&logo=vercel)](https://painel-samu192.vercel.app)
+[![Em produção](https://img.shields.io/badge/status-em%20produ%C3%A7%C3%A3o-2e9e5b?style=for-the-badge)](https://painelsamu192.vercel.app)
+[![Vercel](https://img.shields.io/badge/deploy-Vercel-000?style=for-the-badge&logo=vercel)](https://painelsamu192.vercel.app)
 [![Neon](https://img.shields.io/badge/banco-Neon%20Postgres-00e599?style=for-the-badge&logo=postgresql&logoColor=white)](https://neon.tech)
 [![Testes](https://img.shields.io/badge/testes-31%20passando-2e9e5b?style=for-the-badge&logo=playwright)](#testes)
 
 **🟢 Sistema em produção, usado pela coordenação do SAMU 192 para apresentar a produtividade do serviço.**
 
-🔗 **https://painel-samu192.vercel.app** (acesso restrito com senha)
+🔗 **https://painelsamu192.vercel.app** (acesso restrito com senha)
 
 ![Painel](docs/images/01-painel.png)
 
@@ -68,7 +68,7 @@ Também registra corretamente as ocorrências em que o SAMU **foi acionado, mas 
 
 ### Acesso
 
-Abra **https://painel-samu192.vercel.app** e entre com a senha da coordenação. A sessão dura 7 dias no mesmo navegador; use **Sair** em computadores compartilhados.
+Abra **https://painelsamu192.vercel.app** e entre com a senha da coordenação. A sessão dura 7 dias no mesmo navegador; use **Sair** em computadores compartilhados.
 
 ![Login](docs/images/00-login.png)
 
